@@ -1,0 +1,45 @@
+
+                <html>
+                <head>
+                    <link href="http://mottie.github.io/tablesorter/css/theme.default.css" rel="stylesheet">
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" 
+                        rel="stylesheet" 
+                        integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" 
+                        crossorigin="anonymous">
+                    <script type="text/javascript" 
+                        src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.9.1/jquery.min.js">
+                    </script>
+                    <script type="text/javascript" 
+                        src="http://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.9.1/jquery.tablesorter.min.js">
+                    </script>
+
+                    <script>
+                        $(function(){
+                          $("#myTable").tablesorter({widgets: ['zebra']});
+                        });
+                    </script>                
+                </head>
+                <body class="table-striped table-hover">
+                <div class="container-fluid">
+                <p>Query Analysis Report</p>
+                <table id="myTable" class="tablesorter table">
+                  <thead>
+                    <tr>
+                      <th>Request</th>
+                      <th>count</th>
+                      <th>count perc</th>
+                      <th>time sum</th>
+                      <th>time perc</th>
+                      <th>time avg</th>
+                      <th>time max</th>
+                      <th>time med</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                <tr><td>/api/1/photogenic_banners/list/?server_n</td><td>3</td><td>75.0</td><td>0.9990000000000001</td><td>88.25088339222616</td><td>0.333</td><td>0.433</td><td>0.333</td></td></tr><tr><td>/api/1/photogenic_banners/list/?server_name=WIN7RB4</td><td>1</td><td>25.0</td><td>0.133</td><td>11.74911660777385</td><td>0.133</td><td>0.133</td><td>0.133</td></td></tr>   
+                    </tbody>
+                  </table>
+                  </div>
+                </body>
+                </html>
+                
