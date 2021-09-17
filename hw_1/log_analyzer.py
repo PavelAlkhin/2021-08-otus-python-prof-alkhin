@@ -142,6 +142,7 @@ def creation_result(g_log):
             'time_max': time_max,
             'time_med': time_med,
         }
+
         result.append(row)
 
     return result
@@ -224,6 +225,7 @@ def save_log_to_report_html(result):
 
 def data_test_():
     """набор строк для тестирования"""
+
     line1 = '1.99.174.176 3b81f63526fa8  - [29/Jun/2017:03:50:22 +0300] "GET ' \
             '/api/1/photogenic_banners/list/?server_name=WIN7RB4 HTTP/1.1" 200 12 "-" "Python-urllib/2.7" "-" ' \
             '"1498697422-32900793-4708-9752770" "-" 0.133 '
@@ -249,9 +251,11 @@ def test_pars_data():
     assert (len(result) == 2)
 
 
-def main():
+def main(*args):
     """рабочий код. читает логи из файла:"""
-    filenames = gen_find("nginx-*.log*", config['LOG_DIR'])
+
+    log_dir = config['LOG_DIR']
+    filenames = gen_find("nginx-*.log*", log_dir)
     logfiles = gen_open(filenames)
     log_lines = gen_cat(logfiles)
 
