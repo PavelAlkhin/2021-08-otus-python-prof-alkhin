@@ -12,11 +12,12 @@ from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import logging
 
-FORMAT = '[%(asctime)s] %(levelname).1s %(message)s'
-logging.basicConfig(filename='./log/log.log',
-                    encoding='utf-8',
-                    level=logging.DEBUG,
-                    format=FORMAT)
+# FORMAT = '[%(asctime)s] %(levelname).1s %(message)s'
+# logging.basicConfig(filename='./log/log.log',
+#                     # encoding='utf-8',
+#                     level=logging.DEBUG,
+#                     format=FORMAT
+#                     )
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -46,8 +47,12 @@ GENDERS = {
 
 class CharField(object):
     def __init__(self, required, nullable):
-        pass
-
+        if required and self == None:
+            return False
+        if nullable and self == None:
+            return False
+        if isinstance(self, str):
+            return True
     pass
 
 
@@ -136,7 +141,25 @@ def check_auth(request):
 
 
 def method_handler(request, ctx, store):
-    response, code = None, None
+    response, code = None, 200
+    body = request['body']
+    m_account = body['account']
+    m_login = body['login']
+    m_method = body['method']
+    m_token = body['token']
+    m_arguments = body['arguments']
+    arg_phone = m_arguments['phone']
+    arg_email = m_arguments['email']
+    arg_first_name = m_arguments['first_name']
+    arg_last_name = m_arguments['first_name']
+    arg_birthday = m_arguments['first_name']
+    arg_gender = m_arguments['first_name']
+
+    meth_req = MethodRequest()
+    meth_req.account.__init__() = m_account
+
+
+
     return response, code
 
 
@@ -189,7 +212,7 @@ if __name__ == "__main__":
     op.add_option("-p", "--port", action="store", type=int, default=8080)
     op.add_option("-l", "--log", action="store", default=None)
     (opts, args) = op.parse_args()
-    logging.basicConfig(filename=opts.log, level=logging.INFO,
+    logging.basicConfig(filename='./log/log.log', level=logging.DEBUG,
                         format='[%(asctime)s] %(levelname).1s %(message)s', datefmt='%Y.%m.%d %H:%M:%S')
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
     logging.info("Starting server at %s" % opts.port)
