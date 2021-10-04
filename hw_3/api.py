@@ -53,6 +53,7 @@ class CharField(object):
             return False
         if isinstance(self, str):
             return True
+
     pass
 
 
@@ -77,7 +78,6 @@ class PhoneField(object):
 class DateField(object):
     def __init__(self, required, nullable):
         if required and type():
-
             pass
 
     pass
@@ -156,9 +156,10 @@ def method_handler(request, ctx, store):
     arg_gender = m_arguments['first_name']
 
     meth_req = MethodRequest()
-    meth_req.account.__init__() = m_account
+    meth_req.account = m_account
 
-
+    response = request
+    code = 200
 
     return response, code
 
@@ -212,8 +213,11 @@ if __name__ == "__main__":
     op.add_option("-p", "--port", action="store", type=int, default=8080)
     op.add_option("-l", "--log", action="store", default=None)
     (opts, args) = op.parse_args()
-    logging.basicConfig(filename='./log/log.log', level=logging.DEBUG,
-                        format='[%(asctime)s] %(levelname).1s %(message)s', datefmt='%Y.%m.%d %H:%M:%S')
+    logging.basicConfig(
+        # filename='./log/log.log',
+        level=logging.DEBUG,
+        format='[%(asctime)s] %(levelname).1s %(message)s',
+        datefmt='%Y.%m.%d %H:%M:%S')
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
     logging.info("Starting server at %s" % opts.port)
     try:
