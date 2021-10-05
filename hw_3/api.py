@@ -46,15 +46,25 @@ GENDERS = {
 
 
 class CharField(object):
-    def __init__(self, required, nullable):
-        if required and self == None:
-            return False
-        if nullable and self == None:
-            return False
-        if isinstance(self, str):
-            return True
+    def __init__(self, required=False, nullable=False):
+        self.required = required
+        self.nullable = nullable
+        # self.value = None
+    def check(self, value):
+        if isinstance(value, basestring):
+            return value if isinstance(value, unicode) else value.decode("utf-8")
+        raise ValueError("value is not a string")
 
-    pass
+    # def check(self, value):
+        # if not self.nullable and value == None:
+        #     logging.exception(f'value is null{self.value}')
+        #     self.value = None
+        #
+        # if self.required and value == None:
+        #     logging.exception(f'value is null{value} or required')
+        #     self.value = None
+        #
+        # self.value = value
 
 
 class ArgumentsField(object):
@@ -118,7 +128,7 @@ class OnlineScoreRequest(object):
     gender = GenderField(required=False, nullable=True)
 
 
-class MethodRequest(object):
+class MethodRequest(Object):
     account = CharField(required=False, nullable=True)
     login = CharField(required=True, nullable=True)
     token = CharField(required=True, nullable=True)
@@ -141,25 +151,36 @@ def check_auth(request):
 
 
 def method_handler(request, ctx, store):
+    methods_map = {
+        "online_score": OnlineScoreHandler,
+        "clients_interests": ClientsInterestsHandler,
+    }
     response, code = None, 200
     body = request['body']
-    m_account = body['account']
-    m_login = body['login']
-    m_method = body['method']
-    m_token = body['token']
-    m_arguments = body['arguments']
-    arg_phone = m_arguments['phone']
-    arg_email = m_arguments['email']
-    arg_first_name = m_arguments['first_name']
-    arg_last_name = m_arguments['first_name']
-    arg_birthday = m_arguments['first_name']
-    arg_gender = m_arguments['first_name']
-
     meth_req = MethodRequest()
-    meth_req.account = m_account
+    meth_req.account = body['account']
+    meth_req.m_login = body['login']
+    meth_req.method = body['method']
+    meth_req.token = body['token']
+    meth_req.arguments = body['arguments']
+    # arg_phone = m_arguments['phone']
+    # arg_email = m_arguments['email']
+    # arg_first_name = m_arguments['first_name']
+    # arg_last_name = m_arguments['first_name']
+    # arg_birthday = m_arguments['first_name']
+    # arg_gender = m_arguments['first_name']
 
-    response = request
-    code = 200
+
+
+
+    # response = request
+    # code = 200
+
+    method_request = MethodRequest(request["body"])
+    handler_cls = methods_map.get(method_request.method)
+    handler_cls().validate_handle(method_request,
+                                                   handler_cls.request_type(method_request.arguments),
+                                                   ctx, store)
 
     return response, code
 
