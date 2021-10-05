@@ -18,6 +18,7 @@ import logging
 #                     level=logging.DEBUG,
 #                     format=FORMAT
 #                     )
+import scoring
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -50,94 +51,137 @@ class CharField(object):
         self.required = required
         self.nullable = nullable
         # self.value = None
-    def check(self, value):
-        if isinstance(value, basestring):
-            return value if isinstance(value, unicode) else value.decode("utf-8")
-        raise ValueError("value is not a string")
 
-    # def check(self, value):
-        # if not self.nullable and value == None:
-        #     logging.exception(f'value is null{self.value}')
-        #     self.value = None
-        #
-        # if self.required and value == None:
-        #     logging.exception(f'value is null{value} or required')
-        #     self.value = None
-        #
-        # self.value = value
+    def check(self, value):
+        if isinstance(value, str):
+            return value
+        raise ValueError("value is not a string")
 
 
 class ArgumentsField(object):
     def __init__(self, required, nullable):
-        pass
+        self.required = required
+        self.nullable = nullable
 
-    pass
+    def check(self, value):
+        if isinstance(value, dict):
+            return value
+        raise ValueError("value is not a dictionary")
 
 
 class EmailField(CharField):
-    pass
+    def check(self, value):
+        value = super(EmailField, self).check(value)
+        if "@" in value:
+            return value
+        raise ValueError("value is not an email")
 
 
 class PhoneField(object):
     def __init__(self, required, nullable):
-        pass
+        self.required = required
+        self.nullable = nullable
 
-    pass
+    def check(self, value):
+        if isinstance(value, str):
+            return value
+        raise ValueError("value is not a phone")
 
 
 class DateField(object):
     def __init__(self, required, nullable):
-        if required and type():
-            pass
+        self.required = required
+        self.nullable = nullable
 
-    pass
+    def check(self, value):
+        if type(value) in (datetime.datetime, datetime.date):
+            return value
+        raise ValueError("value is not a datetime")
 
 
-class BirthDayField(object):
-    def __init__(self, required, nullable):
-        pass
-
-    pass
+class BirthDayField(DateField):
+    def check(self, value):
+        value = super(EmailField, self).check(value)
+        return value
 
 
 class GenderField(object):
     def __init__(self, required, nullable):
-        pass
+        self.required = required
+        self.nullable = nullable
 
-    pass
+    def check(self, value):
+        if value in [0, 1, 2]:
+            return GENDERS[value]
+        raise ValueError("value is not a datetime")
 
 
 class ClientIDsField(object):
     def __init__(self, required):
-        pass
+        self.required = required
 
-    pass
+    def check(self, value):
+        if isinstance(value, str):
+            return value
+        raise ValueError("value is not a phone")
 
 
-class ClientsInterestsRequest(object):
+class RequestHandler(object):
+    def validate_handle(self, request, arguments, ctx, store):
+        if not arguments.is_valid:
+            return arguments.errfmt, INVALID_REQUEST
+        return self.handle(request, arguments, ctx, store)
+
+    def handle(self, request, arguments, ctx, store):
+        return {}, OK
+
+
+class RequestMeta(type):
+    def __new__(mcs, name, bases, attrs):
+        field_list = []
+        for k, v in attrs.items():
+            if isinstance(v, Field):
+                v.name = k
+                field_list.append(v)
+
+        cls = super(RequestMeta, mcs).__new__(mcs, name, bases, attrs)
+        cls.fields = field_list
+        return cls
+
+
+class Request(object):
+    __metaclass__ = RequestMeta
+
+    def __init__(self, request):
+        self.errors = []
+        self.request = request
+        self.is_cleaned = False
+
+    def clean(self):
+        for f in self.fields:
+            pass  # code here
+
+    def is_valid(self):
+        if not self.is_cleaned:
+            self.clean()
+        return not self.errors
+
+    def errfmt(self):
+        return ", ".join(self.errors)
+
+
+class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
 
 
-class OnlineScoreRequest(object):
+class OnlineScoreRequest(Request):
     first_name = CharField(required=False, nullable=True)
     last_name = CharField(required=False, nullable=True)
     email = EmailField(required=False, nullable=True)
     phone = PhoneField(required=False, nullable=True)
     birthday = BirthDayField(required=False, nullable=True)
     gender = GenderField(required=False, nullable=True)
-
-
-class MethodRequest(Object):
-    account = CharField(required=False, nullable=True)
-    login = CharField(required=True, nullable=True)
-    token = CharField(required=True, nullable=True)
-    arguments = ArgumentsField(required=True, nullable=True)
-    method = CharField(required=True, nullable=False)
-
-    @property
-    def is_admin(self):
-        return self.login == ADMIN_LOGIN
 
 
 def check_auth(request):
@@ -150,6 +194,92 @@ def check_auth(request):
     return False
 
 
+class OnlineScoreRequest(Request):
+    first_name = CharField(required=False, nullable=True)
+    last_name = CharField(required=False, nullable=True)
+    email = EmailField(required=False, nullable=True)
+    phone = PhoneField(required=False, nullable=True)
+    birthday = BirthDayField(required=False, nullable=True)
+    gender = GenderField(required=False, nullable=True)
+
+
+class OnlineScoreHandler(RequestHandler):
+    request_type = OnlineScoreRequest
+
+    def handle(self, request, arguments, ctx, store):
+        self.score = 0
+        if request.is_admin:
+            self.score = 42
+
+        errors = {}
+
+        try:
+            arg_phone = arguments.phone.check(request.request['arguments']['phone'])
+        except:
+            arg_phone = None
+            errors['phone'] = 'not valid'
+
+        try:
+            arg_email = arguments.email.check(request.request['arguments']['email'])
+        except:
+            arg_email = None
+            errors['email'] = 'not valid'
+
+        try:
+            arg_birthday = arguments.birthday.check(request.request['arguments']['birthday'])
+        except:
+            arg_birthday = None
+            errors['birthday'] = 'not valid'
+
+        try:
+            arg_first_name = arguments.first_name.check(request.request['arguments']['first_name'])
+        except:
+            arg_first_name = None
+            errors['first_name'] = 'not valid'
+
+        try:
+            arg_last_name = arguments.last_name.check(request.request['arguments']['last_name'])
+        except:
+            arg_last_name = None
+            errors['last_name'] = 'not valid'
+
+        try:
+            arg_gender = arguments.gender.check(request.request['arguments']['gender'])
+        except:
+            arg_gender = None
+            errors['gender'] = 'not valid'
+
+        self.score += scoring.get_score(0, arg_phone, arg_email, arg_birthday,
+                                        arg_gender, arg_first_name, arg_last_name)
+
+        return {'score': self.score, 'errors': errors}, OK
+
+
+class ClientsInterestsRequest(Request):
+    client_ids = ClientIDsField(required=True)
+    date = DateField(required=False, nullable=True)
+
+
+class ClientsInterestsHandler(RequestHandler):
+    request_type = ClientsInterestsRequest
+
+    def handle(self, request, arguments, ctx, store):
+        ctx["nclients"] = len(arguments.client_ids)
+        return {cid: scoring.get_interests(store, cid) for cid in arguments.client_ids}, OK
+
+
+class MethodRequest(Request):
+    account = CharField(required=False, nullable=True)
+    login = CharField(required=True, nullable=True)
+    token = CharField(required=True, nullable=True)
+    arguments = ArgumentsField(required=True, nullable=True)
+    method = CharField(required=True, nullable=False)
+
+    @property
+    def is_admin(self):
+        return self.login == ADMIN_LOGIN
+
+
 def method_handler(request, ctx, store):
     methods_map = {
         "online_score": OnlineScoreHandler,
@@ -157,28 +287,11 @@ def method_handler(request, ctx, store):
     }
     response, code = None, 200
     body = request['body']
-    meth_req = MethodRequest()
-    meth_req.account = body['account']
-    meth_req.m_login = body['login']
-    meth_req.method = body['method']
-    meth_req.token = body['token']
-    meth_req.arguments = body['arguments']
-    # arg_phone = m_arguments['phone']
-    # arg_email = m_arguments['email']
-    # arg_first_name = m_arguments['first_name']
-    # arg_last_name = m_arguments['first_name']
-    # arg_birthday = m_arguments['first_name']
-    # arg_gender = m_arguments['first_name']
-
-
-
-
-    # response = request
-    # code = 200
-
     method_request = MethodRequest(request["body"])
-    handler_cls = methods_map.get(method_request.method)
-    handler_cls().validate_handle(method_request,
+    handler_cls = methods_map.get(method_request.request['method'])
+    if not handler_cls:
+        return "Method Not Found", NOT_FOUND
+    response, code = handler_cls().validate_handle(method_request,
                                                    handler_cls.request_type(method_request.arguments),
                                                    ctx, store)
 
@@ -225,7 +338,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             r = {"error": response or ERRORS.get(code, "Unknown Error"), "code": code}
         context.update(r)
         logging.info(context)
-        self.wfile.write(json.dumps(r))
+        self.wfile.write(json.dumps(r).encode())
         return
 
 
