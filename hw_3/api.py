@@ -288,7 +288,13 @@ def method_handler(request, ctx, store):
     response, code = None, 200
     body = request['body']
     method_request = MethodRequest(request["body"])
-    handler_cls = methods_map.get(method_request.request['method'])
+
+    try:
+        method = method_request.request['method']
+    except KeyError as e:
+        return {}, 422
+
+    handler_cls = methods_map.get(method)
     if not handler_cls:
         return "Method Not Found", NOT_FOUND
     response, code = handler_cls().validate_handle(method_request,
