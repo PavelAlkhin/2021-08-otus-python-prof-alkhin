@@ -136,21 +136,21 @@ class RequestHandler(object):
         return {}, OK
 
 
-class RequestMeta(type):
-    def __new__(mcs, name, bases, attrs):
-        field_list = []
-        for k, v in attrs.items():
-            if isinstance(v, Field):
-                v.name = k
-                field_list.append(v)
-
-        cls = super(RequestMeta, mcs).__new__(mcs, name, bases, attrs)
-        cls.fields = field_list
-        return cls
+# class RequestMeta(type):
+#     def __new__(mcs, name, bases, attrs):
+#         field_list = []
+#         for k, v in attrs.items():
+#             if isinstance(v, Field):
+#                 v.name = k
+#                 field_list.append(v)
+#
+#         cls = super(RequestMeta, mcs).__new__(mcs, name, bases, attrs)
+#         cls.fields = field_list
+#         return cls
 
 
 class Request(object):
-    __metaclass__ = RequestMeta
+    # __metaclass__ = RequestMeta
 
     def __init__(self, request):
         self.errors = []
