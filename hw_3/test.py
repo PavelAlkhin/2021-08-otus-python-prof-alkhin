@@ -13,7 +13,9 @@ def cases(cases):
             for c in cases:
                 new_args = args + (c if isinstance(c, tuple) else (c,))
                 f(*new_args)
+
         return wrapper
+
     return decorator
 
 
@@ -22,6 +24,21 @@ class TestSuite(unittest.TestCase):
         self.context = {}
         self.headers = {}
         self.settings = {}
+
+    def test_responce(self):
+        body = {"account": "horns&hoofs",
+                "login": "admin",
+                "method": "online_score",
+                "token": "55cc9ce545bcd144300fe9efc28e65d415b923ebb6be1e19d2750a2c03e80dd209a27954dca045e5bb12418e7d89b6d718a9e35af34e14e1d5bcd",
+                "arguments": {"phone": "79175002040",
+                              "email": "stupnikov@otus.ru",
+                              "first_name": "Ступников",
+                              "last_name": "Ступников",
+                              "birthday": "01.01.1990",
+                              "gender": 1}
+                }
+        res = api.method_handler({"body": body, "headers": self.headers}, self.context, self.settings)
+        print(res)
 
     def get_response(self, request):
         return api.method_handler({"body": request, "headers": self.headers}, self.context, self.settings)
@@ -134,7 +151,7 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(api.OK, code, arguments)
         self.assertEqual(len(arguments["client_ids"]), len(response))
         self.assertTrue(all(v and isinstance(v, list) and all(isinstance(i, basestring) for i in v)
-                        for v in response.values()))
+                            for v in response.values()))
         self.assertEqual(self.context.get("nclients"), len(arguments["client_ids"]))
 
 
