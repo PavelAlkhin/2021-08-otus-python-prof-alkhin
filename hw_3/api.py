@@ -4,6 +4,7 @@
 import json
 import datetime
 import hashlib
+import sys
 import uuid
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler

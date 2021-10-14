@@ -12,15 +12,22 @@ import csv
 import datetime
 import fnmatch
 import gzip
+import json
 import os
 import re
 import logging
+import sys
+import time
+from optparse import OptionParser
+from shutil import move, copy
+from tempfile import mkstemp
 
 CONFIG = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log",
     "file_name": "nginx-access-ui.log",
+    "NGINX_LOG_DIR": "./nginx_log"
 }
 
 COL_NAMES = (
@@ -30,6 +37,7 @@ COL_NAMES = (
 
 LOG_PAT = r'(\S+) (\S+)  (\S+) \[(?P<datetime>\d{2}\/[a-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})\] "(\S+) (' \
           r'\S+) (\S+)" (\S+) (\S+) "(\S+)" "(\S+)" "(\S+)" "(\S+)" "(\S+)" (\S+)'
+
 
 def gen_find(file_pat, top):
     for path, dir_list, file_list in os.walk(top):
@@ -151,6 +159,76 @@ def creation_result_with_pandas(log_list):
     return result
 
 
+def creation_result_pure(log_list):
+    """
+    *count - сĸольĸо раз встречается URL, абсолютное значение
+    *count_perc - сĸольĸо раз встречается URL, в процентнах относительно общего числа запросов
+    *time_sum - суммарный $request_time для данного URL'а, абсолютное значение
+    time_perc - суммарный $request_time для данного URL'а, в процентах относительно общего $request_time всех запросов
+    *time_avg - средний $request_time для данного URL'а
+    *time_max - маĸсимальный $request_time для данного URL'а
+    *time_med - медиана $request_time для данного URL'а
+    """
+    result = []
+
+    unique_requests_list = []
+    all_counts = 0
+    all_time = 0
+    requests_obj = {}
+    for line in log_list:
+        all_counts += 1
+        all_time += line['request_time']
+
+        try:
+            list_times = requests_obj[line['request']].copy()
+            list_times.append(line['request_time'])
+        except KeyError:
+            list_times = [line['request_time']]
+
+        requests_obj.update({line['request']: list_times})
+        if line['request'] in unique_requests_list:
+            continue
+        unique_requests_list.append(line['request'])
+
+    for key in requests_obj:
+        time_list = requests_obj[key]
+        count = len(time_list)
+        time_sum = 0
+        time_max = 0
+
+        for time in time_list:
+            time_sum += time
+            if time_max < time:
+                time_max = time
+        count_med = int(count / 2)
+        time_med = time_list[count_med]
+
+        count_perc = (count / all_counts) * 100
+        time_perc = (time_sum / all_time) * 100
+        time_avg = time_sum / count
+
+        row = fill_in_result(count, count_perc, key, time_avg, time_max, time_med, time_perc, time_sum)
+
+        result.append(row)
+
+    return result
+
+
+def fill_in_result(count, count_perc, key, time_avg, time_max, time_med, time_perc, time_sum):
+    row = {
+        'request': key,
+        'count': count,
+        'count_perc': count_perc,
+        'time_sum': time_sum,
+        'time_perc': time_perc,
+        'time_avg': time_avg,
+        'time_max': time_max,
+        'time_med': time_med,
+    }
+
+    return row
+
+
 def save_log_to_csv(log):
     with open('./reports/report.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=COL_NAMES)
@@ -161,7 +239,9 @@ def save_log_to_csv(log):
 
 
 def save_log_to_report_html(result):
-    with open('./reports/report.html', 'w', newline='', encoding='utf-8') as f:
+    rep_dir = CONFIG['REPORT_DIR']
+    file_name = f'{rep_dir}/report.html'
+    with open(file_name, 'w', newline='', encoding='utf-8') as f:
         f.write("""
                 <html>
                 <head>
@@ -226,86 +306,59 @@ def save_log_to_report_html(result):
                 """)
 
 
-def data_test_():
-    """набор строк для тестирования"""
-
-    line16 = '1.99.174.176 -  - [29/Jun/2017:03:50:22 +0300] "GET /api/1/photogenic_banne HTTP/1.1" 200 1262 "-" ' \
-             '"python-requests/2.8.1" "-" "1498697422-32900793-4708-9752770" "-" 0.133 '
-    line1 = '1.138.198.128 -  - [30/Jun/2017:03:28:22 +0300] "GET /api/v2/banner/25949705 HTTP/1.1" 200 1262 "-" ' \
-            '"python-requests/2.8.1" "-" "1498782502-440360380-4708-10531110" "4e9627334" 0.673 '
-    line2 = '1.138.198.128 -  - [30/Jun/2017:03:28:22 +0300] "GET ' \
-            '/api/v2/banner/25020502/statistic/?date_from=2016-10-20&date_to=2017-06-30 HTTP/1.1" 200 9214 "-" ' \
-            '"python-requests/2.8.1" "-" "1498782502-440360380-4707-10488739" "4e9627334" 0.059 '
-    line3 = '1.138.198.128 -  - [30/Jun/2017:03:28:22 +0300] "GET ' \
-            '/api/v2/banner/25020518/statistic/?date_from=2016-10-20&date_to=2017-06-30 HTTP/1.1" 200 9137 "-" ' \
-            '"python-requests/2.8.1" "-" "1498782502-440360380-4707-10488741" "4e9627334" 0.077 '
-    line4 = '1.170.209.160 -  - [30/Jun/2017:03:28:23 +0300] "GET /export/appinstall_raw/2017-06-30/ HTTP/1.0" 200 ' \
-            '25652 "-" "Mozilla/5.0 (Windows; U; Windows NT 6.0; ru; rv:1.9.0.12) Gecko/2009070611 Firefox/3.0.12 (' \
-            '.NET CLR 3.5.30729)" "-" "-" "-" 0.002 '
-    line5 = '1.170.209.160 -  - [30/Jun/2017:03:28:23 +0300] "GET /export/appinstall_raw/2017-07-01/ HTTP/1.0" 404 ' \
-            '162 "-" "Mozilla/5.0 (Windows; U; Windows NT 6.0; ru; rv:1.9.0.12) Gecko/2009070611 Firefox/3.0.12 (.NET ' \
-            'CLR 3.5.30729)" "-" "-" "-" 0.001 '
-    line6 = '1.138.198.128 -  - [30/Jun/2017:03:28:23 +0300] "GET ' \
-            '/api/v2/banner/25020539/statistic/?date_from=2016-10-20&date_to=2017-06-30 HTTP/1.1" 200 9134 "-" ' \
-            '"python-requests/2.8.1" "-" "1498782503-440360380-4707-10488743" "4e9627334" 0.054 '
-    line7 = '1.169.137.128 -  - [30/Jun/2017:03:28:23 +0300] "GET /api/v2/group/1240146/banners HTTP/1.1" 200 994 "-" ' \
-            '"Configovod" "-" "1498782502-2118016444-4707-10488733" "712e90144abee9" 0.643 '
-    line9 = '1.159.236.144 -  - [30/Jun/2017:03:28:23 +0300] "GET ' \
-            '/api/v2/banner/3118447/statistic/conversion/?date_from=2007-01-01&date_to=2017-06-29 HTTP/1.1" 200 328 ' \
-            '"-" "Mozilla/5.0" "-" "1498782497-708638932-4707-10488660" "0ae935e4e7a96" 5.246 '
-    line8 = '1.195.44.0 -  - [30/Jun/2017:03:28:23 +0300] "GET ' \
-            '/api/v2/internal/revenue_share/service/276/partner/77624766/statistic/v2?date_from=2017-06-24&date_to' \
-            '=2017-06-30&date_type=day HTTP/1.0" 200 2615 "-" "-" "-" "1498782502-1775774396-4707-10488742" ' \
-            '"0d9e6ca2ba" 0.329 '
-    line10 = '1.138.198.128 -  - [30/Jun/2017:03:28:23 +0300] "GET ' \
-             '/api/v2/banner/25187824/statistic/?date_from=2016-10-20&date_to=2017-06-30 HTTP/1.1" 200 8237 "-" ' \
-             '"python-requests/2.8.1" "-" "1498782503-440360380-4707-10488745" "4e9627334" 0.059 '
-    line11 = '1.169.137.128 -  - [30/Jun/2017:03:28:23 +0300] "GET /api/v2/banner/5960595 HTTP/1.1" 200 992 "-" ' \
-             '"Configovod" "-" "1498782503-2118016444-4707-10488744" "712e90144abee9" 0.147 '
-    line12 = '1.199.4.96 -  - [30/Jun/2017:03:28:23 +0300] "GET ' \
-             '/api/v2/banner/17572305/statistic/?date_from=2017-06-30&date_to=2017-06-30 HTTP/1.1" 200 115 "-" ' \
-             '"Lynx/2.8.8dev.9 libwww-FM/2.14 SSL-MM/1.4.1 GNUTLS/2.10.5" "-" "1498782503-3800516057-4707-10488747" ' \
-             '"c5d7e306f36c" 0.083 '
-    line13 = '1.138.198.128 -  - [30/Jun/2017:03:28:23 +0300] "GET /api/v2/banner/25187824 HTTP/1.1" 200 1260 "-" ' \
-             '"python-requests/2.8.1" "-" "1498782503-440360380-4707-10488749" "4e9627334" 0.203 '
-    line14 = '1.195.44.0 -  - [30/Jun/2017:03:28:23 +0300] "GET ' \
-             '/api/v2/internal/revenue_share/service/276/partner/77757278/statistic/v2?date_from=2017-06-24&date_to' \
-             '=2017-06-30&date_type=day HTTP/1.0" 200 12 "-" "-" "-" "1498782503-1775774396-4707-10488750" ' \
-             '"0d9e6ca2ba" 0.144 '
-    line15 = '1.138.198.128 -  - [30/Jun/2017:03:28:23 +0300] "GET /api/v2/banner/25949683 HTTP/1.1" 200 1261 "-" ' \
-             '"python-requests/2.8.1" "-" "1498782502-440360380-4707-10488740" "4e9627334" 0.863 '
-
-    lines = [line1, line2, line3, line4, line5, line6, line7, line8, line9, line10, line11, line12, line13, line14,
-             line15, line16]
-
-    return lines
+def save_log_to_report_html_2(result):
+    rep_dir = CONFIG['REPORT_DIR']
+    file_name = 'report.html'
+    substring = json.dumps(result)
+    fill_in_replace_file(file_name, rep_dir, '$table_json', substring)
 
 
-def test_pars_data():
-    """ тест с несколькми строками лога """
-    log_lines = data_test_()
-    log = log_parser(log_lines)
-    result = creation_result_with_pandas(log)
-    # save_log_to_csv(result)
-    save_log_to_report_html(result)
-    assert (len(result) == 12)
+def fill_in_replace_file(source_file_path, rep_dir, pattern, substring):
+    d = datetime.datetime.today()
+    day = d.day
+    month = d.month
+    year = d.year
+    fh, target_file_path = mkstemp()
+    with open(target_file_path, 'w') as target_file:
+        with open(source_file_path, 'r') as source_file:
+            for line in source_file:
+                target_file.write(line.replace(pattern, substring))
+    target_file.close()
+    # os.remove(source_file_path)
+    copy(target_file_path, f'{rep_dir}/report-{year}.{month}.{day}.html')
 
 
-def main(*args):
+def main():
     """рабочий код. читает логи из файла:"""
-    log_dir = CONFIG['LOG_DIR']
-    filenames = gen_find("nginx-*.log*", log_dir)
-    file = gen_open(filenames)
-    log_lines = gen_cat(file)
+    try:
 
-    log = log_parser(log_lines)
-    result = creation_result_with_pandas(log)
-    # save_log_to_csv(result)
-    save_log_to_report_html(result)
+        log_dir = CONFIG['NGINX_LOG_DIR']
+        filenames = gen_find("nginx-*.log*", log_dir)
+        file = gen_open(filenames)
+        log_lines = gen_cat(file)
+
+        log = log_parser(log_lines)
+
+        # with pandas
+        # result = creation_result_with_pandas(log)
+
+        # with pure python
+        result = creation_result_pure(log)
+
+        # if we want to save csv
+        # save_log_to_csv(result)
+
+        save_log_to_report_html_2(result)
+
+    except Exception as e:
+        logging.error(e)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename='./log/log_analizer.log', encoding='utf-8', level=logging.DEBUG)
+    op = OptionParser()
+    op.add_option('-l', '--log', action='store', default='./log/log_analizer.log')
+    (opts, args) = op.parse_args()
+    logging.basicConfig(filename=opts.log, encoding='utf-8', level=logging.DEBUG)
     logging.info(f'#### started at {datetime.datetime.today()} [')
     main()
     logging.info(f'#### ended at {datetime.datetime.today()} ]')
