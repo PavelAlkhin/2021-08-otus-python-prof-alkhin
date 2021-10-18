@@ -1,8 +1,9 @@
+import logging
 import socket
-import sys
 import threading
+from optparse import OptionParser
 
-allgo = threading.Condition()
+# allgo = threading.Condition()
 
 
 class WebServer:
@@ -47,25 +48,17 @@ def parse_request_line(raw):
 
 def handle_client_connection(client_socket):
     request = client_socket.recv(1024)
+    logging.info(f'Received {request}')
     request_data = request.decode()
-    data = parse_request_line(request_data)
+    req_get, other = request_data.split('HTTP/')
+    req_g, path = req_get.split('GET ')
 
-    print('Received {}'.format(request))
-    list_path = data['resource'].split('/')
-    path = ''
-    for p in list_path:
-        if p == '':
-            path += "/"
-            continue
-        if p == '/':
-            path += p
-            continue
-        if '.' in p:
-            path += p
-        else:
-            path += f'{p}/'
+    path = path.replace(' ', '')
 
     if '.' not in path:
+        c = len(path)
+        if path[:c - 1] != '/':
+            path += '/'
         path += 'index.html'
     index_file = f'.{path}'
     try:
@@ -74,9 +67,9 @@ def handle_client_connection(client_socket):
 
         header = 'HTTP/1.1 200 OK\n'
 
-        if (index_file.endswith(".jpg")):
+        if index_file.endswith(".jpg"):
             mimetype = 'image/jpg'
-        elif (index_file.endswith(".css")):
+        elif index_file.endswith(".css"):
             mimetype = 'text/css'
         else:
             mimetype = 'text/html'
@@ -85,10 +78,13 @@ def handle_client_connection(client_socket):
 
     except Exception as e:
         header = 'HTTP/1.1 404 Not Found\n\n'
-        response = '<html><body><center><h3>Error 404: Resourse not found</h3><p>Python HTTP Server</p></center></body></html>'.encode(
-            'utf-8')
+        response = 'f<html><body><center><h3>Error 404: Resourse not found</h3><p>Python HTTP ' \
+                   'Server</p></center></body></html>'.encode('utf-8')
+        logging.exception(f'exception {e}')
 
     final_response = header.encode('utf-8')
+    logging.info(f'header: {final_response}')
+
     final_response += response
     client_socket.send(final_response)
     client_socket.close()
@@ -101,11 +97,11 @@ class ThreadClass(threading.Thread):
         super().__init__()
 
     def run(self):
-        print('Listening on {}:{}'.format(self.server.bind_ip, self.server.bind_port))
+        logging.info(f'Listening on {self.server.bind_ip}:{self.server.bind_port}')
 
         while True:
             client_sock, address = self.server.server.accept()
-            print('Accepted connection from {}:{}'.format(address[0], address[1]))
+            logging.info(f'Accepted connection from {address[0]}:{address[1]}')
             client_handler = threading.Thread(
                 target=handle_client_connection,
                 args=(client_sock,)
@@ -113,32 +109,41 @@ class ThreadClass(threading.Thread):
             client_handler.start()
         serv_sock.close()
 
-        allgo.acquire()
-        allgo.wait()
-        allgo.release()
-        print("%s at %s\n" % (self.getName(), datetime.datetime.now()))
+        # allgo.acquire()
+        # allgo.wait()
+        # allgo.release()
+        logging.info(f'{self.getName()} at {datetime.datetime.now()}')
 
 
-def main(c_workers, web_server):
-    for i in range(c_workers):
+def make_workers(workers, host, port):
+    web_server = WebServer(host, port)
+    for i in range(workers):
         t = ThreadClass(web_server)
         t.start()
 
-    allgo.acquire()
-    allgo.notify_all()
-    allgo.release()
+    # allgo.acquire()
+    # allgo.notify_all()
+    # allgo.release()
 
 
 if __name__ == "__main__":
-    host = sys.argv[1]
-    port = int(sys.argv[2])
-    name = sys.argv[3]
-    args = sys.argv
-    count_args = len(args)
-    c_workers = 1
-    for i in range(1, count_args):
-        if sys.argv[i] == '-w':
-            c_workers = int(sys.argv[i + 1])
-            break
-    web_server = WebServer(host, port)
-    main(c_workers, web_server)
+    logging.basicConfig(
+        filename='./logs.log',
+        level=logging.DEBUG,
+        format='[%(asctime)s] %(levelname).1s %(message)s',
+        datefmt='%Y.%m.%d %H:%M:%S')
+
+    op = OptionParser()
+    op.add_option('-p', '--port', action='store', default=8080)
+    op.add_option('--host', '--host', action='store', default='127.0.0.1')
+    op.add_option('-n', '--name', action='store', default='httpd')
+    op.add_option('-w', '--workers', action='store', default=4)
+
+    (opts, args) = op.parse_args()
+
+    host = opts.host
+    port = int(opts.port)
+    name = opts.name
+    workers = opts.workers
+
+    make_workers(int(workers), host, port)
