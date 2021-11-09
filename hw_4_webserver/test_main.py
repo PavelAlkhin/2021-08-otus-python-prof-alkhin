@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import requests
 
-from hw_4_webserver.httpd import parse_request_line
+from .httpd import parse_request_line
 
 HEADER = {'Content-Type': 'text/html'}
 TEXT_REQUEST = b'GET /sa/index.html HTTP/1.1\r\nHost: 127.0.0.1:9999'

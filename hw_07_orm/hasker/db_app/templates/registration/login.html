@@ -1,0 +1,50 @@
+{% extends "db_app/base_generic.html" %}
+
+{% block content %}
+
+{% if form.errors %}
+  <h5 class="danger">Your username and password didn't match. Please try again.</h5>
+{% endif %}
+
+{% if next %}
+  {% if user.is_authenticated %}
+    <p class="danger">Your account doesn't have access to this page. To proceed,
+    please login with an account that has access.</p>
+{#  {% else %}#}
+{#    <p>Please login to see this page.</p>#}
+  {% endif %}
+{% endif %}
+
+
+		<div class="row justify-content-center">
+				<div class="card my-5 shadow">
+					<div class="card-body p-5">
+						<div class="text-center">
+							<h1 class="h1 mb-4">Welcome</h1>
+						</div>
+						<form method="post" action="{% url 'login' %}">
+                            {% csrf_token %}
+
+							<div class="form-group">
+								<input type="text" class="form-control" name="username" id="username"
+									    placeholder="username" required="true" autofocus="true" />
+{#                                    {{ form.username.label_tag }} {{ form.username }}#}
+{#                                </input>#}
+							</div>
+							<div class="form-group">
+                                <input type="password" class="form-control" id="password"  placeholder="password" name="password"
+                                       required="true" />
+    {#                                {{ form.password.label_tag }} {{ form.password }}#}
+    {#                            </input>#}
+							</div>
+
+							<div class="form-group">
+                                <input type="submit" class="btn btn-primary" value="login" name="submit" />
+                                <input type="hidden" name="next" value="{{ next }}" />
+							</div>
+						</form>
+					</div>
+				</div>
+		</div>
+
+{% endblock %}

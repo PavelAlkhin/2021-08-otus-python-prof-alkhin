@@ -1,7 +1,8 @@
+import argparse
 import logging
 import socket
 import threading
-from optparse import OptionParser
+
 
 # allgo = threading.Condition()
 
@@ -13,6 +14,12 @@ class WebServer:
         self.server.listen(5)  # max backlog of connections
         self.bind_ip = bind_ip
         self.bind_port = bind_port
+
+        client_sock, address = self.server.accept()
+        self.client_sock = client_sock
+        self.address = address
+
+        logging.info(f'Accepted connection from {address[0]}:{address[1]}')
 
 
 class HTTPError(Exception):
@@ -46,18 +53,38 @@ def parse_request_line(raw):
     return data
 
 
+def _recv_n_bytes(client_socket, n):
+    """ Convenience method for receiving exactly n bytes from
+        self.socket (assuming it's open and connected).
+    """
+    data = ''
+    while len(data) < n:
+        chunk = client_socket.recv(16).decode()
+        data += chunk
+        if '\n\n' in data:
+            break
+        data += chunk
+    data_list = data.split("\r\n")
+    return data_list
+
+
 def handle_client_connection(client_socket):
-    request = client_socket.recv(1024)
-    logging.info(f'Received {request}')
-    request_data = request.decode()
-    req_get, other = request_data.split('HTTP/')
+    data_list = _recv_n_bytes(client_socket, 300)
+
+    logging.info(f'Received {data_list}')
+    # request_data = request.decode()
+    # req_get, other = request_data.split('HTTP/')
+    # req_g, path = req_get.split('GET ')
+
+    path = data_list[0]
+    req_get, other = path.split('HTTP/')
     req_g, path = req_get.split('GET ')
 
     path = path.replace(' ', '')
 
     if '.' not in path:
         c = len(path)
-        if path[:c - 1] != '/':
+        if path[:c] != '/':
             path += '/'
         path += 'index.html'
     index_file = f'.{path}'
@@ -88,6 +115,9 @@ def handle_client_connection(client_socket):
     final_response += response
     client_socket.send(final_response)
     client_socket.close()
+    # allgo.acquire()
+    # allgo.wait()
+    # allgo.release()
 
 
 class ThreadClass(threading.Thread):
@@ -95,23 +125,19 @@ class ThreadClass(threading.Thread):
     def __init__(self, web_server):
         self.server = web_server
         super().__init__()
+        # self.daemon = True
 
     def run(self):
         logging.info(f'Listening on {self.server.bind_ip}:{self.server.bind_port}')
 
         while True:
-            client_sock, address = self.server.server.accept()
-            logging.info(f'Accepted connection from {address[0]}:{address[1]}')
             client_handler = threading.Thread(
                 target=handle_client_connection,
-                args=(client_sock,)
+                args=(self.server.client_sock,)
             )
             client_handler.start()
         serv_sock.close()
 
-        # allgo.acquire()
-        # allgo.wait()
-        # allgo.release()
         logging.info(f'{self.getName()} at {datetime.datetime.now()}')
 
 
@@ -120,10 +146,9 @@ def make_workers(workers, host, port):
     for i in range(workers):
         t = ThreadClass(web_server)
         t.start()
-
-    # allgo.acquire()
-    # allgo.notify_all()
-    # allgo.release()
+        # allgo.acquire()
+        # allgo.notify_all()
+        # allgo.release()
 
 
 if __name__ == "__main__":
@@ -133,17 +158,17 @@ if __name__ == "__main__":
         format='[%(asctime)s] %(levelname).1s %(message)s',
         datefmt='%Y.%m.%d %H:%M:%S')
 
-    op = OptionParser()
-    op.add_option('-p', '--port', action='store', default=8080)
-    op.add_option('--host', '--host', action='store', default='127.0.0.1')
-    op.add_option('-n', '--name', action='store', default='httpd')
-    op.add_option('-w', '--workers', action='store', default=4)
+    parser = argparse.ArgumentParser(description='Parameters.')
+    parser.add_argument('-p', help='port')
+    parser.add_argument('--host', help='host')
+    parser.add_argument('-n', help='name')
+    parser.add_argument('-w', help='workers')
 
-    (opts, args) = op.parse_args()
+    args = parser.parse_args()
 
-    host = opts.host
-    port = int(opts.port)
-    name = opts.name
-    workers = opts.workers
+    host = args.host
+    port = int(args.p)
+    name = args.n
+    workers = args.w
 
     make_workers(int(workers), host, port)
